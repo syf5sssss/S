@@ -18,32 +18,20 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset:; media-src 'self' asset:",
+      "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": [
-          "$APPDATA/assets/**",
-          "$APPDATA/**",
-          "$DOWNLOAD/*",
-          "$ASSETS",
-          "$DESKTOP"
-        ]
-      }
-    }
-  },
-  "plugins": {
-    "protocol": {
-      "asset": {
-        "scope": [
-          "$APPDATA",
-          "$ASSETS",
-          "$DESKTOP"
-        ]
+        "scope": {
+          "allow": [
+            "**"
+          ],
+          "deny": []
+        }
       }
     }
   },
   "bundle": {
-    "active": true,
+    "active": false,
     "targets": "all",
     "icon": [
       "icons/32x32.png",

@@ -28,17 +28,18 @@ export default defineConfig(async () => ({
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
-    proxy: {
-      '/api': {
-        target: 'http://api.map.baidu.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      '/mapopen': {
-        target: 'http://mapopen.bj.bcebos.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/mapopen/, ''),
-      },
-    },
+    // proxy: {
+    //   '/api': {
+    //     target: 'http://api.map.baidu.com',
+    //     changeOrigin: true,
+    //     rewrite: (path) => path.replace(/^\/api/, ''),
+    //   },
+    //   '/mapopen': {
+    //     target: 'http://mapopen.bj.bcebos.com',
+    //     changeOrigin: true,
+    //     rewrite: (path) => path.replace(/^\/mapopen/, ''),
+    //   },
+    // },
   },
 }));
+
