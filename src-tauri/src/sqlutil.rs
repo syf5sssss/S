@@ -1,6 +1,6 @@
-use chrono::{DateTime, Local};
-use rusqlite::{params, Connection, OpenFlags, Result};
-use serde::{Deserialize, Serialize};
+// use chrono::{ DateTime, Local };
+use rusqlite::{ params, Connection, OpenFlags, Result };
+use serde::{ Deserialize, Serialize };
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -21,7 +21,7 @@ pub struct Img {
     pub path: String,
     pub time: String,
     pub lat: f64,
-    pub lon: f64,
+    pub lng: f64,
 }
 
 // 实现 Img 结构体的方法
@@ -34,7 +34,7 @@ impl Img {
             path: String::new(),
             time: String::new(),
             lat: 0.0,
-            lon: 0.0,
+            lng: 0.0,
         }
     }
 }
@@ -43,9 +43,10 @@ impl DbHelper {
     // 初始化数据库连接
     pub fn new(db_path: &str) -> Result<Self> {
         let exists = Path::new(db_path).exists();
-        let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
-            | OpenFlags::SQLITE_OPEN_CREATE
-            | OpenFlags::SQLITE_OPEN_FULL_MUTEX;
+        let flags =
+            OpenFlags::SQLITE_OPEN_READ_WRITE |
+            OpenFlags::SQLITE_OPEN_CREATE |
+            OpenFlags::SQLITE_OPEN_FULL_MUTEX;
 
         let conn = Connection::open_with_flags(db_path, flags)?;
 
@@ -57,9 +58,9 @@ impl DbHelper {
                         path TEXT NOT NULL,
                         time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         lat REAL,
-                        lon REAL
+                        lng REAL
                     )",
-                [],
+                []
             )?;
         }
         Ok(DbHelper {
@@ -69,17 +70,17 @@ impl DbHelper {
     }
 
     // 插入数据
-    pub fn insert(&self, img: &Img) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        // let tx = conn.transaction()?; // 开始事务
-        conn.execute(
-            "INSERT INTO imgs (name, path, time, lat, lon) 
-                VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![img.name, img.path, img.time, img.lat, img.lon],
-        )?;
-        // tx.commit()?; // 提交事务
-        Ok(())
-    }
+    // pub fn insert(&self, img: &Img) -> Result<()> {
+    //     let conn = self.conn.lock().unwrap();
+    //     // let tx = conn.transaction()?; // 开始事务
+    //     conn.execute(
+    //         "INSERT INTO imgs (name, path, time, lat, lon)
+    //             VALUES (?1, ?2, ?3, ?4, ?5)",
+    //         params![img.name, img.path, img.time, img.lat, img.lon],
+    //     )?;
+    //     // tx.commit()?; // 提交事务
+    //     Ok(())
+    // }
 
     pub fn insert_imgs(&self, imgs: &[Img]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap(); // 获取数据库连接
@@ -87,9 +88,9 @@ impl DbHelper {
 
         for img in imgs {
             tx.execute(
-                "INSERT INTO imgs (name, path, time, lat, lon) 
+                "INSERT INTO imgs (name, path, time, lat, lng) 
                     VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![img.name, img.path, img.time, img.lat, img.lon],
+                params![img.name, img.path, img.time, img.lat, img.lng]
             )?;
         }
 
@@ -108,7 +109,7 @@ impl DbHelper {
                 path: row.get(2)?,
                 time: row.get(3)?,
                 lat: row.get(4)?,
-                lon: row.get(5)?,
+                lng: row.get(5)?,
             })
         })?;
 
@@ -119,22 +120,22 @@ impl DbHelper {
         Ok(imgs)
     }
 
-    // 根据ID删除
-    pub fn delete_by_id(&self, id: i32) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute("DELETE FROM imgs WHERE id = ?1", params![id])?;
-        Ok(())
-    }
+    // // 根据ID删除
+    // pub fn delete_by_id(&self, id: i32) -> Result<()> {
+    //     let conn = self.conn.lock().unwrap();
+    //     conn.execute("DELETE FROM imgs WHERE id = ?1", params![id])?;
+    //     Ok(())
+    // }
 
-    // 更新经纬度
-    pub fn update_location(&self, id: i32, lan: f64, lon: f64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "UPDATE imgs SET lat = ?1, lon = ?2 WHERE id = ?3",
-            params![lan, lon, id],
-        )?;
-        Ok(())
-    }
+    // // 更新经纬度
+    // pub fn update_location(&self, id: i32, lan: f64, lon: f64) -> Result<()> {
+    //     let conn = self.conn.lock().unwrap();
+    //     conn.execute(
+    //         "UPDATE imgs SET lat = ?1, lon = ?2 WHERE id = ?3",
+    //         params![lan, lon, id],
+    //     )?;
+    //     Ok(())
+    // }
 
     // 清空表（SQLite 不支持 TRUNCATE，使用 DELETE + VACUUM）
     pub fn truncate(&self) -> Result<()> {

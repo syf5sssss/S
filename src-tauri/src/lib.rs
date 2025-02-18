@@ -40,7 +40,7 @@ fn load_dir_imgs(path: &str) -> Result<Vec<Img>, String> {
         let exifreader = exif::Reader::new();
         let exif = match exifreader.read_from_container(&mut bufreader) {
             Ok(exif) => exif,
-            Err(e) => {
+            Err(_e) => {
                 continue;
                 // return Err(format!("无法读取 EXIF 数据 {}: {}", fpath.display(), e));
             }
@@ -53,7 +53,7 @@ fn load_dir_imgs(path: &str) -> Result<Vec<Img>, String> {
             .and_then(|s| s.to_str()) // 将 OsStr 转换为 &str
             .ok_or_else(|| "无法获取文件名")?; // 如果失败，返回错误
         pic.name = file_name.to_string();
-        pic.path = str;
+        pic.path = str.to_string();
         if let Some(gps_date_time) = exif.get_field(exif::Tag::DateTime, In::PRIMARY) {
             let width_str = format!("{}", gps_date_time.display_value().with_unit(&exif));
             pic.time = width_str;
@@ -62,41 +62,37 @@ fn load_dir_imgs(path: &str) -> Result<Vec<Img>, String> {
         if let Some(gps_latitude) = exif.get_field(exif::Tag::GPSLatitude, In::PRIMARY) {
             let width_str = format!("{}", gps_latitude.display_value().with_unit(&exif));
             println!("GPS Latitude: {:?}", width_str);
-            let lat = parse_dms(&width_str).expect("Failed to parse latitude");
-            pic.lat = lat;
-            println!("WGS84坐标:lat ({})", lat);
+
+            match parse_dms(&width_str) {
+                Ok(lat) => {
+                    pic.lat = lat;
+                    println!("WGS84坐标:lat ({})", lat);
+                }
+                Err(e) => {
+                    println!("无法解析纬度 {}: {}", fpath.display(), e);
+                    continue;
+                }
+            }
         }
         if let Some(gps_longitude) = exif.get_field(exif::Tag::GPSLongitude, In::PRIMARY) {
             let width_str = format!("{}", gps_longitude.display_value().with_unit(&exif));
             println!("GPS Longitude: {:?}", width_str);
-            let lon = parse_dms(&width_str).expect("Failed to parse longitude");
-            pic.lon = lon;
-            println!("WGS84坐标:lon ({})", lon);
+
+            match parse_dms(&width_str) {
+                Ok(lng) => {
+                    pic.lng = lng;
+                    println!("WGS84坐标:lng ({})", lng);
+                }
+                Err(e) => {
+                    println!("无法解析经度 {}: {}", fpath.display(), e);
+                    continue;
+                }
+            }
         }
-        if pic.lat < pic.lon {
-            let cah = pic.lat;
-            pic.lat = pic.lon;
-            pic.lon = cah;
-        }
+        //lng 经度{+-180},lat 纬度 {+-90} 至少lng是大的那个
         imgs.push(pic);
     }
-    // if imgs.len() > 0 {
-    //     let db = match DbHelper::new("img.db") {
-    //         Ok(db) => db,
-    //         Err(e) => {
-    //             return Err(format!("{}", e));
-    //         }
-    //     };
-    //     match db.truncate() {
-    //         Ok(_) => {}
-    //         Err(e) => {
-    //             return Err(format!("{}", e));
-    //         }
-    //     }
-    //     let _ = db.insert_imgs(&imgs);
-    //     let all = db.query_all();
-    //     println!("all: {:?}", all);
-    // }
+    println!("imgs: {:?}", imgs);
     Ok(imgs)
 }
 
