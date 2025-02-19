@@ -19,19 +19,21 @@
     <Dialog v-model:visible="dialogimgsVisible" header="预览图片" modal class="p-dialog-maximized">
       <DataView :value="products" :layout="layout">
         <template #grid="slotProps">
-          <div class="grid grid-cols-12 gap-4">
+          <div class="grid grid-cols-12 ">
             <div v-for="(item, index) in slotProps.items" :key="index"
-              class="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-6 p-2">
+              class="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-6 p-1">
               <div
-                class="p-6 border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 rounded flex flex-col">
-                <div class="bg-surface-50 flex justify-center rounded p-4">
+                class="p-1 border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 rounded flex flex-col">
+                <div class="bg-surface-50 flex justify-center rounded p-1">
                   <div class="relative mx-auto">
-                    <img class="rounded w-full" :src="`http://asset.localhost/${item}`" :alt="item"
-                      style="max-width: 300px" />
+                    <Image :src="`http://asset.localhost/${item}`" :alt="item" width="250" preview />
+                    <!-- <Image :src="`http://asset.localhost/D:/TEST/rt2/2222222222222/IMG_20241013_200808.jpg`" :alt="item"
+                      width="250" preview /> -->
 
+                    <!-- <img class="rounded w-full" :src="`http://asset.localhost/${item}`" :alt="item"
+                      style="max-width: 300px" /> -->
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
@@ -50,6 +52,8 @@ import DataTable from 'primevue/datatable';
 import Dialog from 'primevue/dialog';
 import Column from 'primevue/column';
 import DataView from 'primevue/dataview';
+import Image from 'primevue/image';
+
 
 
 let imgs = ref([]);
@@ -60,6 +64,7 @@ var convertor = new BMapGL.Convertor();
 
 const products = ref();
 const layout = ref('grid');
+let maxlevel = ref(4);;
 
 // 定义列的字段和标题
 const columns = ref([
@@ -89,7 +94,7 @@ async function getdirpath() {
       const end1 = performance.now();
       console.log(`加载 运行时间: ${end1 - start}ms`);
       if (imgs.value && imgs.value.length > 0) {
-        console.log(imgs.value);//不知道为什么，这这里会很自然地将后端的数据修改掉，lat和lng数据交换了？？？
+        // console.log(imgs.value);//不知道为什么，这这里会很自然地将后端的数据修改掉，lat和lng数据交换了？？？
         const batchSize = 10; // 每次处理的批大小
         const totalBatches = Math.ceil(imgs.value.length / batchSize); // 计算总批次数
         for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
@@ -112,7 +117,7 @@ async function getdirpath() {
             console.log('转换一次 数量' + lrr.length);
             convertor.translate(lrr, COORDINATES_WGS84, COORDINATES_BD09, function (data) {
               if (data.status === 0) {
-                console.log(data.points);
+                // console.log(data.points);
                 for (let i = 0; i < data.points.length; i++) {
                   imgs.value[start + i].lat = data.points[i].lat;
                   imgs.value[start + i].lng = data.points[i].lng;
@@ -126,7 +131,7 @@ async function getdirpath() {
         }
       }
       console.log('准备插入图片');
-      console.log(imgs.value);
+      // console.log(imgs.value);
       invoke('insert_imgs', { imgs: imgs.value })
         .then(() => {
           // 插入完成后刷新页面
@@ -167,7 +172,7 @@ async function truncate() {
 }
 
 function load() {
-  // map.clearOverlays();
+  map.clearOverlays();
   if (imgs.value.length > 0) {
     let clusters = clusterMarkers(map.getZoom());
     reloadMarker(map, clusters);
@@ -178,7 +183,6 @@ function load() {
 function showImg(i) {
   products.value = clusters[i].arr;
   dialogimgsVisible.value = true;
-  console.log(clusters[i]);
 }
 window.showImg = showImg;
 
@@ -190,7 +194,7 @@ function ZoomControl() {
 
 function reloadMarker(map, clusters) {
   try {
-    console.log(clusters);
+    // console.log(clusters);
     // 创建 RichMarker 并添加到地图上
     for (let i = 0; i < clusters.length; i++) {
       var badgeContent = clusters[i].arr.length + ''; // 将数字转换为字符串
@@ -245,10 +249,13 @@ onMounted(async () => {
     // 监听缩放事件
     map.addEventListener("zoomend", function () {
       var currentZoom = map.getZoom(); // 获取当前缩放级别
-      if (currentZoom > ratio.value) {
+      if (currentZoom > maxlevel.value) {
         load();
       }
       ratio.value = currentZoom;
+      if (currentZoom > maxlevel.value) {
+        maxlevel.value = currentZoom;
+      }
     });
 
     //自定义控件必须实现自己的initialize方法，并且将控件的DOM元素返回
@@ -300,20 +307,14 @@ function getGridSize(zooms) {
   if (11 >= zoom && zoom > 9) {
     return 0.65;//20km
   }
-  if (13 >= zoom && zoom > 11) {
-    return 0.5;//5km
+  if (15 >= zoom && zoom > 11) {
+    return 0.01;//5km
   }
-  if (15 >= zoom && zoom > 13) {
-    return 0.1;//1km
-  }
-  if (17 >= zoom && zoom > 15) {
-    return 0.02;//200
-  }
-  if (19 >= zoom && zoom > 17) {
+  if (19 >= zoom && zoom > 15) {
     return 0.005;//50
   }
   if (21 >= zoom && zoom > 19) {
-    return 0.001;//10
+    return 0.0001;//10
   }
   return 1;
 }
@@ -321,10 +322,7 @@ function getGridSize(zooms) {
 // 聚合算法（基于网格）
 function clusterMarkers(zoom) {
   let gridSize = getGridSize(zoom);
-  console.log('gridSize:' + gridSize);
   clusters = [];
-  console.log('imgs.value.len:' + imgs.value.length);
-  console.log(imgs.value);
   // 将点分配到网格
   imgs.value.forEach(point => {
     let flag = 0;
