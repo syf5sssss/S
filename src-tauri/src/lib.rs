@@ -66,11 +66,21 @@ fn load_dir_imgs(path: &str) -> Result<Vec<Img>, String> {
             match parse_dms(&width_str) {
                 Ok(lat) => {
                     pic.lat = lat;
-                    println!("WGS84坐标:lat ({})", lat);
+                    println!("1 WGS84坐标:lat ({})", lat);
                 }
                 Err(e) => {
-                    println!("无法解析纬度 {}: {}", fpath.display(), e);
-                    continue;
+                    println!("1 无法解析纬度 {}: {}", fpath.display(), e);
+                    // continue;
+                    match parse_dms2(&width_str) {
+                        Ok(lat) => {
+                            pic.lat = lat;
+                            println!("2 WGS84坐标:lat ({})", lat);
+                        }
+                        Err(e) => {
+                            println!("2 无法解析纬度 {}: {}", fpath.display(), e);
+                            continue;
+                        }
+                    }
                 }
             }
         }
@@ -81,11 +91,21 @@ fn load_dir_imgs(path: &str) -> Result<Vec<Img>, String> {
             match parse_dms(&width_str) {
                 Ok(lng) => {
                     pic.lng = lng;
-                    println!("WGS84坐标:lng ({})", lng);
+                    println!("1 WGS84坐标:lng ({})", lng);
                 }
                 Err(e) => {
-                    println!("无法解析经度 {}: {}", fpath.display(), e);
-                    continue;
+                    println!("1 无法解析经度 {}: {}", fpath.display(), e);
+                    // continue;
+                    match parse_dms2(&width_str) {
+                        Ok(lng) => {
+                            pic.lng = lng;
+                            println!("2 WGS84坐标:lng ({})", lng);
+                        }
+                        Err(e) => {
+                            println!("2 无法解析经度 {}: {}", fpath.display(), e);
+                            continue;
+                        }
+                    }
                 }
             }
         }
@@ -137,6 +157,34 @@ fn query_all() -> Result<Vec<Img>, String> {
     Ok(all)
 }
 
+//"31/1, 2/1, 5994/100 N"
+fn parse_dms2(dms: &str) -> Result<f64, Box<dyn Error>> {
+    // 正则表达式匹配分数形式的 DMS 格式
+    let re = Regex::new(r"(\d+)/(\d+), (\d+)/(\d+), (\d+)/(\d+) ([NSEW])").unwrap();
+    let caps = re.captures(dms).ok_or("Invalid DMS format")?;
+
+    // 解析度、分、秒
+    let degrees: f64 = caps[1].parse::<f64>()? / caps[2].parse::<f64>()?;
+    let minutes: f64 = caps[3].parse::<f64>()? / caps[4].parse::<f64>()?;
+    let seconds: f64 = caps[5].parse::<f64>()? / caps[6].parse::<f64>()?;
+    let direction = &caps[7];
+
+    // 转换为十进制度数
+    let total_degrees = degrees + minutes / 60.0 + seconds / 3600.0;
+
+    // 根据方向设置正负号
+    let sign = match direction {
+        "N" | "E" => 1.0,
+        "S" | "W" => -1.0,
+        _ => {
+            return Err("Invalid direction".into());
+        }
+    };
+
+    Ok(total_degrees * sign)
+}
+
+//31 deg 13 min 20.78659 sec N
 fn parse_dms(dms: &str) -> Result<f64, Box<dyn Error>> {
     let re = Regex::new(r"(\d+) deg (\d+) min ([\d.]+) sec ([NSEW])").unwrap();
     let caps = re.captures(dms).ok_or("Invalid DMS format")?;
