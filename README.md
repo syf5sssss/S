@@ -1,18 +1,20 @@
 # Tauri + Vue 3
 
-This template should help get you started developing with Tauri + Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+This template should help get you started developing with Tauri + Vue 3 in Vite. 
 
 # S
-做点自己喜欢的小功能
+windows 地图相册
 
 Template created! To get started run:
   cd S
   npm install
-  npm run tauri android init
-
-For Desktop development, run:
   npm run tauri dev
+  npm run tauri build
+
+# 下载地址
+https://github.com/syf5sssss/S/releases/tag/v1.0.0
+
+# 使用说明
+1.打开应用后，找到重新加载按钮，选择一个文件夹打开
+2.程序会加载文件夹中的图片信息，根据地址显示在地图上的位置
+3.运行程序，同级目录会生成一个img.db文件用来记录本次加载的信息，如果图片没有改动，打开即可展示，不用每次都重新加载一次。
