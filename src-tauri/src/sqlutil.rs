@@ -1,13 +1,7 @@
-// use chrono::{ DateTime, Local };
 use rusqlite::{ params, Connection, OpenFlags, Result };
 use serde::{ Deserialize, Serialize };
 use std::path::Path;
 use std::sync::Mutex;
-
-// 数据库结构体
-// pub struct DbHelper {
-//     conn: Connection,
-// }
 
 pub struct DbHelper {
     conn: Mutex<Connection>, // 使用 Mutex 包装 Connection 以支持多线程
@@ -66,21 +60,7 @@ impl DbHelper {
         Ok(DbHelper {
             conn: Mutex::new(conn),
         })
-        // Ok(DbHelper { conn })
     }
-
-    // 插入数据
-    // pub fn insert(&self, img: &Img) -> Result<()> {
-    //     let conn = self.conn.lock().unwrap();
-    //     // let tx = conn.transaction()?; // 开始事务
-    //     conn.execute(
-    //         "INSERT INTO imgs (name, path, time, lat, lon)
-    //             VALUES (?1, ?2, ?3, ?4, ?5)",
-    //         params![img.name, img.path, img.time, img.lat, img.lon],
-    //     )?;
-    //     // tx.commit()?; // 提交事务
-    //     Ok(())
-    // }
 
     pub fn insert_imgs(&self, imgs: &[Img]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap(); // 获取数据库连接
@@ -92,6 +72,18 @@ impl DbHelper {
                     VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![img.name, img.path, img.time, img.lat, img.lng]
             )?;
+        }
+
+        tx.commit()?; // 提交事务
+        Ok(())
+    }
+
+    pub fn update_paths(&self, imgs: &[Img]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap(); // 获取数据库连接
+        let tx = conn.transaction()?; // 开始事务
+
+        for img in imgs {
+            tx.execute("UPDATE imgs SET path = ?1 WHERE id = ?2", params![img.path, img.id])?;
         }
 
         tx.commit()?; // 提交事务
@@ -120,22 +112,19 @@ impl DbHelper {
         Ok(imgs)
     }
 
-    // // 根据ID删除
-    // pub fn delete_by_id(&self, id: i32) -> Result<()> {
-    //     let conn = self.conn.lock().unwrap();
-    //     conn.execute("DELETE FROM imgs WHERE id = ?1", params![id])?;
-    //     Ok(())
-    // }
+    // 根据ID删除
+    pub fn delete_by_id(&self, id: i32) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM imgs WHERE id = ?1", params![id])?;
+        Ok(())
+    }
 
-    // // 更新经纬度
-    // pub fn update_location(&self, id: i32, lan: f64, lon: f64) -> Result<()> {
-    //     let conn = self.conn.lock().unwrap();
-    //     conn.execute(
-    //         "UPDATE imgs SET lat = ?1, lon = ?2 WHERE id = ?3",
-    //         params![lan, lon, id],
-    //     )?;
-    //     Ok(())
-    // }
+    // 更新经纬度
+    pub fn update_location(&self, id: i32, lat: f64, lng: f64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("UPDATE imgs SET lat = ?1, lng = ?2 WHERE id = ?3", params![lat, lng, id])?;
+        Ok(())
+    }
 
     // 清空表（SQLite 不支持 TRUNCATE，使用 DELETE + VACUUM）
     pub fn truncate(&self) -> Result<()> {

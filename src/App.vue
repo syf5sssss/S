@@ -2,10 +2,21 @@
   <div>
     <div id="map-container" ref="mapContainer">
     </div>
-    <div style="font-size: xx-small;">
-      <span class="info-text" @click="dialogVisible = true">
-        成功加载图片数量 {{ count }} 当前展示级别 {{ ratio }}
-      </span>
+    <div class="container" style="font-size: xx-small;">
+      <div class="left">
+        <span class="info-text" @click="dialogVisible = true">
+          成功加载图片数量 {{ count }} 当前展示级别 {{ ratio }}
+        </span>
+      </div>
+      <div class="right">
+        <span class="info-text" @click="showRedPoint()">
+          红点
+        </span>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <span class="info-text" @click="showImgPoint()">
+          图片
+        </span>
+      </div>
     </div>
   </div>
   <div class="card">
@@ -27,11 +38,6 @@
                 <div class="bg-surface-50 flex justify-center rounded p-1">
                   <div class="relative mx-auto">
                     <Image :src="`http://asset.localhost/${item}`" :alt="item" width="250" preview />
-                    <!-- <Image :src="`http://asset.localhost/D:/TEST/rt2/2222222222222/IMG_20241013_200808.jpg`" :alt="item"
-                      width="250" preview /> -->
-
-                    <!-- <img class="rounded w-full" :src="`http://asset.localhost/${item}`" :alt="item"
-                      style="max-width: 300px" /> -->
                   </div>
                 </div>
               </div>
@@ -57,6 +63,8 @@ import Image from 'primevue/image';
 
 
 let imgs = ref([]);
+let updatels = ref([]);
+let insertls = ref([]);
 let ratio = ref(5);
 let count = ref(0);
 let map = null;
@@ -64,7 +72,7 @@ var convertor = new BMapGL.Convertor();
 
 const products = ref();
 const layout = ref('grid');
-let maxlevel = ref(4);;
+let maxlevel = ref(4);
 
 // 定义列的字段和标题
 const columns = ref([
@@ -81,6 +89,16 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function showImgPoint() {
+  sessionStorage.setItem('redimg', 1);
+  location.reload();
+}
+
+function showRedPoint() {
+  sessionStorage.setItem('redimg', 0);
+  location.reload();
+}
+
 async function getdirpath() {
   try {
     const file = await open({
@@ -89,26 +107,68 @@ async function getdirpath() {
     });
     if (file && file.length > 0) {
       const start = performance.now();
-      truncate();
-      imgs.value = await invoke('load_dir_imgs', { path: file });
+      let block = false;
+      let tls = await invoke('load_dir_imgs', { path: file });
       const end1 = performance.now();
       console.log(`加载 运行时间: ${end1 - start}ms`);
-      if (imgs.value && imgs.value.length > 0) {
-        // console.log(imgs.value);//不知道为什么，这这里会很自然地将后端的数据修改掉，lat和lng数据交换了？？？
+      if (tls && tls.length > 0) {
+        //批量修改
+        updatels.value = [];
+        //批量添加
+        insertls.value = [];
+        if (imgs.value && imgs.value.length > 0) {
+          for (let k = 0; k < tls.length; k++) {
+            let b = false;
+            for (let p = 0; p < imgs.value.length; p++) {
+              if (tls[k].name === imgs.value[p].name) {
+                if (tls[k].path !== imgs.value[p].path) {
+                  imgs.value[p].path = tls[k].path;
+                  updatels.value.push(imgs.value[p]);
+                }
+                b = true;
+                break;
+              }
+            }
+            console.log(b);
+            if (!b) {
+              if (tls[k].lat === 0 && tls[k].lng === 0) {
+                // tls[k].diy = 1;
+              } else {
+                insertls.value.push(tls[k]);
+              }
+            }
+          }
+        } else {
+          insertls.value = tls;
+          console.log('批量插入全部' + tls.length);
+        }
+        if (updatels && updatels.value.length > 0) {
+          block = true;
+          invoke('update_paths', { imgs: updatels.value })
+            .then(() => {
+              block = false;
+              console.log('批量修改完成:' + updatels.value.length);
+            })
+            .catch((error) => {
+              block = false;
+              console.error("批量修改失败", error);
+            });
+        }
+
         const batchSize = 10; // 每次处理的批大小
-        const totalBatches = Math.ceil(imgs.value.length / batchSize); // 计算总批次数
+        const totalBatches = Math.ceil(insertls.value.length / batchSize); // 计算总批次数
         for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
           let lrr = []; // 用于存储当前批次的点
           const start = batchIndex * batchSize; // 当前批次的起始索引
-          const end = Math.min(start + batchSize, imgs.value.length); // 当前批次的结束索引
+          const end = Math.min(start + batchSize, insertls.value.length); // 当前批次的结束索引
 
           for (let i = start; i < end; i++) {
-            if (imgs.value[i].lat && imgs.value[i].lng) {
+            if (insertls.value[i].lat && insertls.value[i].lng) {
               //(x,y) 这里按照api的意思，x是相对来说比较大的那个
-              if (imgs.value[i].lng >= imgs.value[i].lat) {
-                lrr.push(new BMapGL.Point(imgs.value[i].lng, imgs.value[i].lat));
+              if (insertls.value[i].lng >= insertls.value[i].lat) {
+                lrr.push(new BMapGL.Point(insertls.value[i].lng, insertls.value[i].lat));
               } else {
-                lrr.push(new BMapGL.Point(imgs.value[i].lat, imgs.value[i].lng));
+                lrr.push(new BMapGL.Point(insertls.value[i].lat, tinsertls.valuels[i].lng));
               }
             }
           }
@@ -119,8 +179,8 @@ async function getdirpath() {
               if (data.status === 0) {
                 // console.log(data.points);
                 for (let i = 0; i < data.points.length; i++) {
-                  imgs.value[start + i].lat = data.points[i].lat;
-                  imgs.value[start + i].lng = data.points[i].lng;
+                  insertls.value[start + i].lat = data.points[i].lat;
+                  insertls.value[start + i].lng = data.points[i].lng;
                 }
               } else {
                 console.error("转换失败", data);
@@ -131,17 +191,23 @@ async function getdirpath() {
         }
       }
       console.log('准备插入图片');
-      // console.log(imgs.value);
-      invoke('insert_imgs', { imgs: imgs.value })
+      console.log(insertls.value);
+      invoke('insert_imgs', { imgs: insertls.value })
         .then(() => {
+          while (block) {
+            sleep(1000);
+            console.log('睡眠1s等待修改完成');
+          }
+          sleep(100);
           // 插入完成后刷新页面
+          console.log('刷新页面');
           location.reload();
         })
         .catch((error) => {
           console.error("插入失败", error);
         });
       const end2 = performance.now();
-      console.log('图片数量' + imgs.value.length);
+      console.log('图片数量' + insertls.value.length);
       console.log(`转换 运行时间: ${end2 - end1}ms`);
     }
   } catch (error) {
@@ -162,20 +228,25 @@ async function get_all() {
     message(JSON.stringify(error, null, 2), { title: 'Tauri', kind: 'get_all error' });
   }
 }
-async function truncate() {
-  try {
-    let res = await invoke('truncate');
-  } catch (error) {
-    console.log(error);
-    message(JSON.stringify(error, null, 2), { title: 'Tauri', kind: 'truncate error' });
-  }
-}
+
 
 function load() {
   map.clearOverlays();
   if (imgs.value.length > 0) {
     let clusters = clusterMarkers(map.getZoom());
-    reloadMarker(map, clusters);
+    const value = sessionStorage.getItem('redimg');
+    if (value) {
+      if (value === '1') {
+        console.log('图片' + value);
+        reloadMarker(map, clusters);
+      } else {
+        console.log('红点' + value);
+        reloadPoint(map, clusters);
+      }
+    } else {
+      console.log('没有值 红点');
+      reloadPoint(map, clusters);
+    }
   }
 }
 
@@ -192,6 +263,52 @@ function ZoomControl() {
   this.defaultOffset = new BMapGL.Size(20, 20)
 }
 
+//红点
+function reloadPoint(map, clusters) {
+  for (let i = 0; i < clusters.length; i++) {
+    const point = new window.BMapGL.Point(clusters[i].lng, clusters[i].lat);
+    const richMarker = new window.BMapGL.Marker(point);
+    map.addOverlay(richMarker);
+    // 点标记添加点击事件
+    richMarker.addEventListener('click', function () {
+      showImg(i); // 开启信息窗口
+    });
+    let offx = -8;
+    if (clusters[i].arr.length < 10) {
+      offx = -2;
+    } else if (clusters[i].arr.length < 100) {
+      offx = -6;
+    } else {
+      offx = -10;
+    }
+    var opts = {
+      position: point, // 指定文本标注所在的地理位置
+      offset: new BMapGL.Size(offx, -30) // 设置文本偏移量
+    };
+    // 创建文本标注对象
+    var label = new BMapGL.Label(clusters[i].arr.length, opts);
+    // 自定义文本标注样式
+    label.setStyle({
+      color: '#ffffff',
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      borderColor: "rgba(0, 0, 0, 0)",
+      border: "none",
+      borderRadius: '5px',
+      borderColor: '#ccc',
+      padding: '0px',
+      fontSize: '8px',
+      fontWeight: "bold",
+      height: '30px',
+      lineHeight: '30px',
+      fontFamily: '微软雅黑'
+    });
+    map.addOverlay(label);
+    console.log('添加一个标记');
+  }
+  count.value = imgs.value.length;
+}
+
+//图片
 function reloadMarker(map, clusters) {
   try {
     // console.log(clusters);
@@ -402,5 +519,30 @@ function clusterMarkers(zoom) {
 .p-datatable .p-datatable-tbody td {
   font-size: 10px;
   /* 设置为所需字体大小 */
+}
+
+.container {
+  display: flex;
+  /* 使用 Flexbox 布局 */
+  justify-content: space-between;
+  /* 两端对齐 */
+  align-items: center;
+  /* 垂直居中 */
+  width: 100%;
+  /* 占满父容器宽度 */
+}
+
+.left {
+  display: flex;
+  /* 左侧内容也使用 Flexbox */
+  align-items: center;
+  /* 垂直居中 */
+}
+
+.right {
+  display: flex;
+  /* 右侧内容也使用 Flexbox */
+  align-items: center;
+  /* 垂直居中 */
 }
 </style>

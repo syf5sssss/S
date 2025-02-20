@@ -127,7 +127,17 @@ fn insert_imgs(imgs: Vec<Img>) -> String {
     let _ = db.insert_imgs(&imgs);
     return "".to_string();
 }
-
+#[tauri::command]
+fn update_paths(imgs: Vec<Img>) -> String {
+    let db = match DbHelper::new("img.db") {
+        Ok(db) => db,
+        Err(e) => {
+            return e.to_string();
+        }
+    };
+    let _ = db.update_paths(&imgs);
+    return "".to_string();
+}
 #[tauri::command]
 fn truncate() -> String {
     let db = match DbHelper::new("img.db") {
@@ -137,6 +147,30 @@ fn truncate() -> String {
         }
     };
     let _ = db.truncate();
+    return "".to_string();
+}
+
+#[tauri::command]
+fn delete_by_id(id: i32) -> String {
+    let db = match DbHelper::new("img.db") {
+        Ok(db) => db,
+        Err(e) => {
+            return e.to_string();
+        }
+    };
+    let _ = db.delete_by_id(id);
+    return "".to_string();
+}
+
+#[tauri::command]
+fn update_location(id: i32, lat: f64, lng: f64) -> String {
+    let db = match DbHelper::new("img.db") {
+        Ok(db) => db,
+        Err(e) => {
+            return e.to_string();
+        }
+    };
+    let _ = db.update_location(id, lat, lng);
     return "".to_string();
 }
 
@@ -270,7 +304,10 @@ pub fn run() {
                 load_dir_imgs,
                 insert_imgs,
                 truncate,
-                query_all
+                query_all,
+                delete_by_id,
+                update_location,
+                update_paths
             ]
         )
         .run(tauri::generate_context!())
