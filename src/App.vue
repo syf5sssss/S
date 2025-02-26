@@ -1,27 +1,43 @@
 <template>
   <div>
-    <div id="map-container" ref="mapContainer">
-    </div>
-    <div class="container" style="font-size: xx-small;">
+    <div class="container" style="font-size: 16px;padding: 3px;">
       <div class="left">
         <span class="info-text" @click="dialogVisible = true">
-          成功加载图片数量 {{ count }} 当前展示级别 {{ ratio }}
+          图片数量 {{ count }} 当前展示级别 {{ ratio.toFixed(2) }}&nbsp;&nbsp;&nbsp;&nbsp; {{ info }}
         </span>
       </div>
       <div class="right">
-        <span class="info-text" @click="showRedPoint()">
+        <Button class="info-text" @click="load_file_img()" size="small">
+          读取图片
+        </Button>
+        &nbsp;&nbsp;
+        <Button class="info-text" @click="convertImages()" size="small">
+          加载目录
+        </Button>
+        &nbsp;&nbsp;
+        <Button class="info-text" @click="showRedPoint()" size="small">
           红点
-        </span>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-        <span class="info-text" @click="showImgPoint()">
+        </Button>
+        &nbsp;&nbsp;
+        <Button class="info-text" @click="showImgPoint()" size="small">
           图片
-        </span>
+        </Button>
       </div>
     </div>
+    <div id="map-container" ref="mapContainer">
+    </div>
+    <!-- <img :src="`http://asset.localhost/C:/Users/Administrator/Pictures/中国地图.png`" :alt="item" width="250"> -->
   </div>
   <div class="card">
     <Dialog v-model:visible="dialogVisible" header="详细信息" modal class="p-dialog-maximized">
-      <DataTable :value="imgs" scrollable scrollHeight="flex" tableStyle="min-width: 50rem">
+      <DataTable v-model:filters="filters" :value="imgs" scrollable scrollHeight="flex" paginator :rows="20"
+        :rowsPerPageOptions="[20, 100, 500]" tableStyle="min-width: 50rem"
+        :globalFilterFields="['name', 'path', 'lat', 'lng', 'time']" filterDisplay="row" :loading="loading">
+        <template #header>
+          <InputText v-model="filters['global'].value" placeholder="搜索" fluid />
+        </template>
+        <template #empty> No customers found. </template>
+        <template #loading> Loading customers data. Please wait. </template>
         <Column v-for="column in columns" :key="column.field" :field="column.field" :header="column.header"></Column>
       </DataTable>
     </Dialog>
@@ -37,6 +53,7 @@
                 class="p-1 border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 rounded flex flex-col">
                 <div class="bg-surface-50 flex justify-center rounded p-1">
                   <div class="relative mx-auto">
+                    <!-- <img :src="`http://asset.localhost/${item}`" :alt="item" width="250"> -->
                     <Image :src="`http://asset.localhost/${item}`" :alt="item" width="250" preview />
                   </div>
                 </div>
@@ -47,21 +64,36 @@
       </DataView>
     </Dialog>
   </div>
+  <div>
+    <BlockUI :blocked="isLoading" fullScreen>
+    </BlockUI>
+  </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { message } from '@tauri-apps/plugin-dialog';
+import { listen } from '@tauri-apps/api/event';
 import DataTable from 'primevue/datatable';
 import Dialog from 'primevue/dialog';
 import Column from 'primevue/column';
 import DataView from 'primevue/dataview';
 import Image from 'primevue/image';
+import Button from 'primevue/button';
+import BlockUI from 'primevue/blockui';
+import { FilterMatchMode } from '@primevue/core/api';
+import InputText from 'primevue/inputtext';
+// import Fluid from 'primevue/fluid';
 
 
 
+const info = ref('');
+const loading = ref(true);
+
+// 定义响应式变量
+const isLoading = ref(false);
 let imgs = ref([]);
 let updatels = ref([]);
 let insertls = ref([]);
@@ -72,6 +104,8 @@ var convertor = new BMapGL.Convertor();
 
 const products = ref();
 const layout = ref('grid');
+//magick D:/TEST/IMG_9866.CR3 D:/TEST/IMG_9866.jpg
+const cmd = ref('magick --version');//magick --version
 let maxlevel = ref(4);
 
 // 定义列的字段和标题
@@ -85,8 +119,186 @@ const columns = ref([
 const dialogVisible = ref(false);
 const dialogimgsVisible = ref(false);
 
+const filters = ref({
+  global: { value: null, matchMode: FilterMatchMode.CONTAINS }
+});
+
+// 监听后端事件
+listen('current_file', (event) => {
+  info.value = event.payload;
+  console.log(currentFile.value);
+});
+
+const convertImages = async () => {
+  const directory = await open({
+    multiple: false,
+    directory: true,
+  });
+  if (directory && directory.length > 0) {
+    isLoading.value = true;
+    try {
+      console.log('转换开始');
+      await invoke('convert_images', { dir: directory });
+      info.value = '所有图片转换完成！';
+    } catch (error) {
+      info.value = `转换出错: ${error}`;
+    } finally {
+      setTimeout(() => {
+        console.log('转换结束');
+        info.value = "转换结束";
+        info.value = "";
+      }, 100);
+
+      try {
+        if (directory && directory.length > 0) {
+          //先转换一次
+          console.log("开始加载地址信息");
+          info.value = "开始加载地址信息";
+          const start = performance.now();
+          let block = false;
+          let tls = await invoke('load_dir_imgs', { path: directory });
+          const end1 = performance.now();
+          console.log(`加载地址信息 运行时间: ${end1 - start}ms`);
+          if (tls && tls.length > 0) {
+            //批量修改
+            updatels.value = [];
+            //批量添加
+            insertls.value = [];
+            if (imgs.value && imgs.value.length > 0) {
+              for (let k = 0; k < tls.length; k++) {
+                let b = false;
+                for (let p = 0; p < imgs.value.length; p++) {
+                  if (tls[k].name === imgs.value[p].name) {
+                    if (tls[k].path !== imgs.value[p].path) {
+                      imgs.value[p].path = tls[k].path;
+                      updatels.value.push(imgs.value[p]);
+                    }
+                    b = true;
+                    break;
+                  }
+                }
+                console.log(b);
+                if (!b) {
+                  if (tls[k].lat === 0 && tls[k].lng === 0) {
+                    // tls[k].diy = 1;
+                  } else {
+                  }
+                  insertls.value.push(tls[k]);
+                }
+              }
+            } else {
+              insertls.value = tls;
+              console.log('批量插入全部' + tls.length);
+            }
+            if (updatels && updatels.value.length > 0) {
+              block = true;
+              invoke('update_paths', { imgs: updatels.value })
+                .then(() => {
+                  block = false;
+                  console.log('批量修改完成:' + updatels.value.length);
+                })
+                .catch((error) => {
+                  block = false;
+                  console.error("批量修改失败", error);
+                });
+            }
+
+            const batchSize = 10; // 每次处理的批大小
+            const totalBatches = Math.ceil(insertls.value.length / batchSize); // 计算总批次数
+            for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+              let lrr = []; // 用于存储当前批次的点
+              const start = batchIndex * batchSize; // 当前批次的起始索引
+              const end = Math.min(start + batchSize, insertls.value.length); // 当前批次的结束索引
+
+              for (let i = start; i < end; i++) {
+                if (insertls.value[i].lat && insertls.value[i].lng) {
+                  //(x,y) 这里按照api的意思，x是相对来说比较大的那个
+                  if (insertls.value[i].lng >= insertls.value[i].lat) {
+                    lrr.push(new BMapGL.Point(insertls.value[i].lng, insertls.value[i].lat));
+                  } else {
+                    lrr.push(new BMapGL.Point(insertls.value[i].lat, tinsertls.valuels[i].lng));
+                  }
+                }
+              }
+
+              if (lrr.length > 0) {
+                console.log('转换一次 数量' + lrr.length);
+                convertor.translate(lrr, COORDINATES_WGS84, COORDINATES_BD09, function (data) {
+                  if (data.status === 0) {
+                    // console.log(data.points);
+                    for (let i = 0; i < data.points.length; i++) {
+                      insertls.value[start + i].lat = data.points[i].lat;
+                      insertls.value[start + i].lng = data.points[i].lng;
+                    }
+                  } else {
+                    console.error("转换失败", data);
+                  }
+                });
+              }
+              await sleep(200);
+            }
+          }
+          console.log('准备插入图片');
+          info.value = "开始插入数据";
+          console.log(insertls.value);
+          invoke('insert_imgs', { imgs: insertls.value })
+            .then(() => {
+              while (block) {
+                sleep(1000);
+                console.log('睡眠1s等待修改完成');
+              }
+              sleep(100);
+              // 插入完成后刷新页面
+              console.log('刷新页面');
+              location.reload();
+            })
+            .catch((error) => {
+              console.error("插入失败", error);
+            });
+          const end2 = performance.now();
+          console.log('图片数量' + insertls.value.length);
+          console.log(`插入数据 运行时间: ${end2 - end1}ms`);
+        }
+      } catch (error) {
+        isLoading.value = false;
+        console.log(error);
+        message(JSON.stringify(error, null, 2), { title: 'Tauri', kind: 'getdirpath error' });
+      }
+      isLoading.value = false;
+    }
+  }
+
+};
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function convertJpg() {
+  try {
+    console.log(cmd.value);
+    let res = await invoke('run_command', { command: cmd.value });
+    console.log(res);
+  } catch (error) {
+    console.log(`转换出错: ${error}`);
+  }
+}
+
+async function load_file_img() {
+  try {
+    const file = await open({
+      multiple: false,
+      directory: false,
+    });
+    if (file && file.length > 0) {
+      let tls = await invoke('load_file_img', { path: file });
+      console.log(tls);
+      message(tls, { title: '读取信息', kind: '读取信息' });
+    }
+  } catch (error) {
+    message(error, { title: '读取信息出错', kind: '读取信息出错' });
+    console.log(error);
+  }
 }
 
 function showImgPoint() {
@@ -98,7 +310,7 @@ function showRedPoint() {
   sessionStorage.setItem('redimg', 0);
   location.reload();
 }
-
+//加载文件目录
 async function getdirpath() {
   try {
     const file = await open({
@@ -106,6 +318,9 @@ async function getdirpath() {
       directory: true,
     });
     if (file && file.length > 0) {
+      //先转换一次
+      isLoading.value = true;
+      console.log("开始加载地址信息");
       const start = performance.now();
       let block = false;
       let tls = await invoke('load_dir_imgs', { path: file });
@@ -134,8 +349,8 @@ async function getdirpath() {
               if (tls[k].lat === 0 && tls[k].lng === 0) {
                 // tls[k].diy = 1;
               } else {
-                insertls.value.push(tls[k]);
               }
+              insertls.value.push(tls[k]);
             }
           }
         } else {
@@ -201,7 +416,7 @@ async function getdirpath() {
           sleep(100);
           // 插入完成后刷新页面
           console.log('刷新页面');
-          location.reload();
+          // location.reload();
         })
         .catch((error) => {
           console.error("插入失败", error);
@@ -214,6 +429,7 @@ async function getdirpath() {
     console.log(error);
     message(JSON.stringify(error, null, 2), { title: 'Tauri', kind: 'getdirpath error' });
   }
+  isLoading.value = false;
 }
 
 async function get_all() {
@@ -221,6 +437,7 @@ async function get_all() {
     let res = await invoke('query_all');
     if (res && res.length > 0) {
       imgs.value = res;
+      loading.value = false;
       load();
     }
   } catch (error) {
@@ -256,12 +473,6 @@ function showImg(i) {
   dialogimgsVisible.value = true;
 }
 window.showImg = showImg;
-
-//定义一个控件类
-function ZoomControl() {
-  this.defaultAnchor = BMAP_ANCHOR_TOP_LEFT;
-  this.defaultOffset = new BMapGL.Size(20, 20)
-}
 
 //红点
 function reloadPoint(map, clusters) {
@@ -303,7 +514,7 @@ function reloadPoint(map, clusters) {
       fontFamily: '微软雅黑'
     });
     map.addOverlay(label);
-    console.log('添加一个标记');
+    // console.log('添加一个标记');
   }
   count.value = imgs.value.length;
 }
@@ -334,7 +545,7 @@ function reloadMarker(map, clusters) {
         enableDragging: true,
       });
       map.addOverlay(richMarker);
-      console.log('添加一个标记');
+      // console.log('添加一个标记');
     }
     count.value = imgs.value.length;
   } catch (error) {
@@ -342,9 +553,24 @@ function reloadMarker(map, clusters) {
   }
 }
 
+// 定义键盘事件处理函数
+const handleKeyDown = (event) => {
+  // 阻止按键的默认行为
+  // 判断是否按下 F5、F12 或者 Ctrl + R
+  if (event.key === 'F5' || event.key === 'F12' || (event.ctrlKey && event.key === 'r')) {
+    // 阻止按键的默认行为
+    event.preventDefault();
+  }
+};
+
+// 组件卸载时移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 
 onMounted(async () => {
   try {
+    window.addEventListener('keydown', handleKeyDown);
     // 确保百度地图和扩展库已加载
     if (!window.BMapGL || !window.BMapGLLib) {
       alert("百度地图或扩展库未正确加载");
@@ -360,9 +586,6 @@ onMounted(async () => {
     map.addControl(scaleCtrl);
     var zoomCtrl = new BMapGL.ZoomControl();  // 添加缩放控件
     map.addControl(zoomCtrl);
-    //通过JavaScript的prototype属性继承于BMap.Control
-    ZoomControl.prototype = new BMapGL.Control();
-
     // 监听缩放事件
     map.addEventListener("zoomend", function () {
       var currentZoom = map.getZoom(); // 获取当前缩放级别
@@ -374,40 +597,12 @@ onMounted(async () => {
         maxlevel.value = currentZoom;
       }
     });
-
-    //自定义控件必须实现自己的initialize方法，并且将控件的DOM元素返回
-    //在本方法中创建个div元素作为控件的容器，并将其添加到地图容器中
-    ZoomControl.prototype.initialize = function (map) {
-      //创建一个dom元素
-      var div = document.createElement('div');
-      //添加文字说明
-      div.appendChild(document.createTextNode('重新加载'));
-      // 设置样式
-      div.style.cursor = "pointer";
-      div.style.padding = "7px 10px";
-      div.style.boxShadow = "0 2px 6px 0 rgba(27, 142, 236, 0.5)";
-      div.style.borderRadius = "5px";
-      div.style.backgroundColor = "white";
-      // 绑定事件,点击一次放大两级
-      div.onclick = function (e) {
-        getdirpath();
-      }
-      // 添加DOM元素到地图中
-      map.getContainer().appendChild(div);
-      // 将DOM元素返回
-      return div;
-    }
-    //创建控件元素
-    var myZoomCtrl = new ZoomControl();
-    //添加到地图中
-    map.addControl(myZoomCtrl);
     get_all();
   } catch (error) {
     console.error('Failed to initialize map or RichMarker:', error);
     message(JSON.stringify(error, null, 2), { title: 'Tauri', kind: 'error' });
   }
 });
-
 
 let clusters = [];
 function getGridSize(zooms) {
@@ -484,7 +679,7 @@ function clusterMarkers(zoom) {
 <style>
 #map-container {
   width: 100%;
-  height: 95vh;
+  height: 92vh;
   /* 使用 vh 单位使地图容器占满整个视口高度 */
   margin: 0;
   padding: 0;
