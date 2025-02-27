@@ -1,12 +1,14 @@
 use exif::In;
 use serde_json::json;
 use std::collections::HashSet;
-use std::process::Command;
+use std::process::{ Command, Stdio };
 use std::{ env, io };
 use regex::Regex;
 use sqlutil::{ DbHelper, Img };
 use std::{ error::Error, fs, path::Path };
 use tauri::{ AppHandle, Emitter, Manager };
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 mod sqlutil;
 
 //http://asset.localhost/D:/TEST/rt2/IMG_20250209_164108/IMG_20250209_124541.jpg
@@ -486,12 +488,23 @@ async fn convert_images(app_handle: AppHandle, dir: &str) -> Result<(), String> 
         println!("output_path: {:?}", output_path);
         let command = format!("magick {} {}", input_path.display(), output_path.display());
         let shell = if cfg!(target_os = "windows") { "cmd" } else { "sh" };
-        match
-            Command::new(shell)
-                .arg(if shell == "cmd" { "/c" } else { "-c" })
-                .arg(command)
-                .status()
+
+        // 构建命令并设置启动选项
+        let mut cmd = Command::new(shell);
+        cmd.arg(if shell == "cmd" { "/c" } else { "-c" })
+            .arg(command)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        // 在 Windows 上设置不显示窗口标志
+        #[cfg(target_os = "windows")]
         {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        match cmd.status() {
             Ok(status) => {
                 if !status.success() {
                     println!("转换失败: {:?}, 状态: {:?}", input_path, status);
