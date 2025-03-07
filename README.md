@@ -12,9 +12,11 @@ Template created! To get started run:
   npm run tauri build
 
 # 下载地址
-https://github.com/syf5sssss/S/releases/tag/v1.0.0
+https://github.com/syf5sssss/S/releases/tag/v1.0.3
 
 # 使用说明
-1.打开应用后，找到重新加载按钮，选择一个文件夹打开
-2.程序会加载文件夹中的图片信息，根据地址显示在地图上的位置
-3.运行程序，同级目录会生成一个img.db文件用来记录本次加载的信息，如果图片没有改动，打开即可展示，不用每次都重新加载一次。
+demo目录：演示视频
+大概功能：
+1.转换大部分相机的照片为JPG格式，并将原图定位信息拷贝到新文件。
+2.如果原图没有定位信息，可以在地图页面设置图片的定位信息。
+3.可以使用红点和图片两种方式展示地图和图片的关系。
