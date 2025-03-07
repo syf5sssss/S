@@ -520,6 +520,23 @@ function load() {
       }
       // }
     }
+
+    // 获取所有具有 'lazy-image' 类的图片元素
+    const images = document.querySelectorAll('.lazy-image');
+    // 遍历每个图片元素
+    images.forEach(img => {
+      // 为每个图片元素绑定 onerror 事件处理函数
+      img.onerror = function () {
+        // 如果缩略图加载失败，将 src 属性设置为 data-original 中存储的原图地址
+        // console.log(img);
+        // 获取自定义属性的值
+        const originalSrc = this.getAttribute('custom-original');
+        if (originalSrc) {
+          // console.log(originalSrc);
+          this.src = originalSrc;
+        }
+      };
+    });
   } catch (error) {
     console.log(error);
   }
@@ -587,10 +604,11 @@ function reloadMarker(map, clusters) {
       var badgeWidth = Math.max(20, 15 + badgeContent.length * 4); // 最小宽度为20px，每多一个字符增加12px
       var badgeFontSize = 10; //Math.min(10, 9 + 12 / badgeContent.length); // 字体大小，最多12px，根据字符长度动态调整
       var imgurl = 'http://asset.localhost/' + getNarrowImg(clusters[i].path);
+      var imgurl2 = 'http://asset.localhost/' + clusters[i].path;
       var htm1 =
         "<div id='overLay' style='width:93px;height:116px; background:url(./back.png) left top no-repeat;position: absolute;'>" +
         "<div class='image-container'>" +
-        "<img onclick='showImg(\"" + i + "\")'  style='margin-left:9px;margin-top: 8px;width:75px;height:75px;object-fit: cover;' src='" + imgurl + "'/>" +
+        "<img class='lazy-image' onclick='showImg(\"" + i + "\")'  style='margin-left:9px;margin-top: 8px;width:75px;height:75px;object-fit: cover;' src='" + imgurl + "' custom-original='" + imgurl2 + "'/>" +
         "</div>" +
         "<div style='position: absolute; top: -8px; right: -9px; background-color: red; color: white; font-size: " + badgeFontSize + "px; width: " + badgeWidth + "px; height: " + badgeWidth + "px; line-height: " + badgeWidth + "px; text-align: center; border-radius: 50%;'>" +
         badgeContent +
@@ -609,6 +627,8 @@ function reloadMarker(map, clusters) {
     console.log(error);
   }
 }
+
+
 
 function getNarrowImg(filePath) {
   // 将路径按斜杠分割成数组
