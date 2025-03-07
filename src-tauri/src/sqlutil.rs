@@ -9,6 +9,33 @@ pub struct DbHelper {
 
 // 图片数据结构体
 #[derive(Debug, Serialize, Deserialize)]
+pub struct FImg {
+    pub id: i32,
+    pub name: String,
+    pub path: String,
+    pub comment: String,
+    pub time: String,
+    pub lat: f64,
+    pub lng: f64,
+}
+
+// 实现 Img 结构体的方法
+impl FImg {
+    // 定义 new 方法
+    pub fn new() -> Self {
+        FImg {
+            id: 0,
+            name: String::new(),
+            path: String::new(),
+            comment: String::new(),
+            time: String::new(),
+            lat: 0.0,
+            lng: 0.0,
+        }
+    }
+}
+// 图片数据结构体
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Img {
     pub id: i32,
     pub name: String,
@@ -81,9 +108,11 @@ impl DbHelper {
     pub fn update_paths(&self, imgs: &[Img]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap(); // 获取数据库连接
         let tx = conn.transaction()?; // 开始事务
-
         for img in imgs {
-            tx.execute("UPDATE imgs SET path = ?1 WHERE id = ?2", params![img.path, img.id])?;
+            tx.execute(
+                "UPDATE imgs SET path = ?1, lat = ?2, lng = ?3 WHERE id = ?4",
+                params![img.path, img.lat, img.lng, img.id]
+            )?;
         }
 
         tx.commit()?; // 提交事务
